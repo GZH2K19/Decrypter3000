@@ -26,47 +26,57 @@ def decrypt(data:bytes, tEncKey:list[int]):
         return
 
 
+def process_game(game_path:str):
+    game = Path(game_path)
+    print("Processing:", game)
+
+    json_system = game/"data"/"System.json"
+    if not json_system.exists():
+        print("Error: System.json not found.\n")
+        return
+    with open(json_system, "r", encoding="utf-8-sig") as f:
+        data = json.load(f)
+    encKey = data.get("encryptionKey")
+    if not encKey:
+        print("Error: Encryption key not found.\n")
+        return
+    print("Encryption key:", encKey)
+    tEncKey = transEncKey(encKey)
+
+    folderList = []
+    if data.get("hasEncryptedImages"):
+        folderList.append("img")
+    if data.get("hasEncryptedAudio"):
+        folderList.append("audio")
+    if not folderList:
+        print("Error: Encrypted files not found.\n")
+        return
+    
+    for folder in folderList:
+        print("Decrypting", folder, "files...")
+        ori = game/folder
+        new = game/(folder+"_decrypted")
+        for r in ori.rglob("*.*_"):
+            with open(r, "rb") as f:
+                byt = decrypt(f.read(), tEncKey)
+            if not byt:
+                print("Failed to decrypt:", r.relative_to(game))
+                continue
+            file = str(new/r.relative_to(ori))[:-1]
+            os.makedirs(os.path.dirname(file), exist_ok=True)
+            with open(file, "wb") as f:
+                f.write(byt)
+    print("Done.\n")
+
+
 if __name__ == "__main__":
     if not argv[1:]:
         print("No arguments provided. Please drag the game folder onto this script.")
     else:
         try:
-            for game in argv[1:]:
-                game = Path(game)
-                print("Processing", game)
-                json_system = game/"data"/"System.json"
-                if not json_system.exists():
-                    print("Error: System.json not found.\n")
-                    continue
-                with open(json_system, "r", encoding="utf-8-sig") as f:
-                    data = json.load(f)
-                encKey = data.get("encryptionKey")
-                if not encKey:
-                    print("Error: Encryption key not found.\n")
-                    continue
-                print("Encryption key:", encKey)
-                tEncKey = transEncKey(encKey)
-                folderList = [i for i in ["img", "audio"] if (game/i).exists()]
-                if not folderList:
-                    print("Error: Encrypted files not found.\n")
-                    continue
-
-                for folder in folderList:
-                    print("Decrypting", folder, "files...")
-                    ori = game/folder
-                    new = game/(folder+"_decrypted")
-                    for r in ori.rglob("*.*_"):
-                        with open(r, "rb") as f:
-                            byt = decrypt(f.read(), tEncKey)
-                        if not byt:
-                            print("Failed to decrypt:", r.relative_to(game))
-                            continue
-                        file = str(new/r.relative_to(ori))[:-1]
-                        os.makedirs(os.path.dirname(file), exist_ok=True)
-                        with open(file, "wb") as f:
-                            f.write(byt)
-                print("Done.\n")
+            for game_path in argv[1:]:
+                process_game(game_path)
         except:
             from traceback import format_exc
             print(format_exc())
-    input("Press ENTER to exit...")
+    os.system("pause")
